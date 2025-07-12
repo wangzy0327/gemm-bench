@@ -63,8 +63,8 @@ test_ipmi_command() {
         return 1
     fi
     
-    # 显示前5行数据用于调试
-    echo "$psu_data" | head -2
+    # 显示前8行数据用于调试
+    echo "$psu_data" | head -8
     
     # 测试解析逻辑
     valid_count=0
@@ -318,22 +318,22 @@ print_system_results_table() {
     actual_power_end_time="${data[11]}"
     
     # 确定空格数量
-    local spaces=" "
-    if [[ "$performance_unit" == "FLOPS" ]]; then
+    local spaces="  "
+    if [[ "$performance_unit" == "TFLOPS" ]]; then
         spaces=""
     fi
     
     echo "整机测试结果:"
-    echo "+------------+----------+-------------+-------------+-------------+---------------+---------------+"
-    echo "|计算耗时(ms)| 采样点数 | 最小功率(W) | 最大功率(W) | 计算功率(W) |计算性能($performance_unit)$spaces|能效比($efficiency_unit)$spaces|"
-    echo "+------------+----------+-------------+-------------+-------------+---------------+---------------+"
+    echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
+    echo "|计算耗时(ms)| 采样点数 | 最小功率(W) | 最大功率(W) | 计算功率(W) |$spaces计算性能($performance_unit)|$spaces能效比($efficiency_unit)|"
+    echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
     
     # 安全的数值格式化
     min_power_formatted=$(safe_format_number "$min_power" "%13.2f")
     max_power_formatted=$(safe_format_number "$max_power" "%13.2f")
     calc_power_formatted=$(safe_format_number "$calc_power" "%13.2f")
-    performance_formatted=$(safe_format_number "$total_performance" "%15.2f")
-    efficiency_formatted=$(safe_format_number "$efficiency" "%15.2f")
+    performance_formatted=$(safe_format_number "$total_performance" "%16.2f")
+    efficiency_formatted=$(safe_format_number "$efficiency" "%16.2f")
     
     # 居中对齐
     total_time_centered=$(printf "%12s" "$total_time")
@@ -344,7 +344,7 @@ print_system_results_table() {
         "$min_power_formatted" "$max_power_formatted" "$calc_power_formatted" \
         "$performance_formatted" "$efficiency_formatted"
     
-    echo "+------------+----------+-------------+-------------+-------------+---------------+---------------+"
+    echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
     
     # 简洁的总结输出
     if [[ "$efficiency" != "N/A" ]]; then
@@ -381,11 +381,17 @@ sleep 2  # 给监控程序一些启动时间
 print_gpu_performance_table() {
     local gpu_performances=("$@")
     local num_gpus=${#gpu_performances[@]}
+
+    # 确定空格数量
+    local spaces="  "
+    if [[ "$performance_unit" == "TFLOPS" ]]; then
+        spaces=""
+    fi
     
     echo "各GPU计算性能:"
-    echo "+------+---------------+---------------+"
-    echo "| GPU  | 计算性能($performance_unit) | 占比(%)       |"
-    echo "+------+---------------+---------------+"
+    echo "+------+------------------+---------------+"
+    echo "| GPU  |  $spaces计算性能($performance_unit)|    占比(%)    |"
+    echo "+------+------------------+---------------+"
     
     for ((i=0; i<num_gpus; i++)); do
         gpu_data="${gpu_performances[$i]}"
@@ -402,13 +408,13 @@ print_gpu_performance_table() {
         
         # 格式化输出
         gpu_perf_formatted=$(safe_format_number "$gpu_perf" "%15.2f")
-        percentage_formatted=$(safe_format_number "$percentage" "%15.2f")
+        percentage_formatted=$(safe_format_number "$percentage" "%14.2f")
         
-        printf "| %4s |%15s |%15s |\n" \
+        printf "| %4s |%17s |%14s |\n" \
             "$gpu_id" "$gpu_perf_formatted" "$percentage_formatted"
     done
     
-    echo "+------+---------------+---------------+"
+    echo "+------+------------------+---------------+"
 }
 
 # 在后台并行运行每个GPU任务
@@ -457,13 +463,9 @@ for gpu in "${GPUS[@]}"; do
         if grep -q "TOPS:" "$log_file"; then
             performance_value=$(grep "TOPS:" "$log_file" | awk '{print $NF}')
             current_unit="TOPS"
-        elif grep -q "FLOPS:" "$log_file"; then
-            performance_value=$(grep "FLOPS:" "$log_file" | awk '{print $NF}')
-            current_unit="FLOPS"
         elif grep -q "TFLOPS:" "$log_file"; then
-            tflops=$(grep "TFLOPS:" "$log_file" | awk '{print $NF}')
-            performance_value=$(awk "BEGIN {printf \"%.3f\", $tflops * 1000000000000}")
-            current_unit="FLOPS"
+            performance_value=$(grep "TFLOPS:" "$log_file" | awk '{print $NF}')
+            current_unit="TFLOPS"
         else
             performance_value=0
             current_unit="UNKNOWN"
