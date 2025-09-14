@@ -4,6 +4,30 @@
 # 用法: ./batch_efficiency_ranking.sh [iterations] [dtype] [gpu_list] [sampling_interval_ms]
 # 示例: ./batch_efficiency_ranking.sh 10000 int8 "0,1,2,3,4,5,6,7" 500
 
+# 信号处理函数 - 清理所有衍生进程
+cleanup() {
+    echo ""
+    echo "接收到中断信号，正在清理..."
+    
+    # 终止system_power_efficiency.sh及其所有子进程
+    pkill -P $$ 2>/dev/null
+    
+    # 清理临时文件
+    rm -f "$TEMP_RESULTS" "sorted_results.txt" "power_logs/system_power.log" "power_logs/system_monitor.pid" 2>/dev/null
+    
+    # 终止可能的后台监控进程
+    if [ -f "power_logs/system_monitor.pid" ]; then
+        monitor_pid=$(cat "power_logs/system_monitor.pid")
+        kill "$monitor_pid" 2>/dev/null
+    fi
+    
+    echo "清理完成，退出脚本"
+    exit 1
+}
+
+# 设置信号处理
+trap cleanup SIGINT SIGTERM
+
 # 默认参数
 ITERATIONS=${1:-10000}
 DTYPE=${2:-int8}
