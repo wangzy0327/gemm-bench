@@ -216,7 +216,8 @@ calculate_system_efficiency() {
     
     # 提取指定时间范围内的功率数据
     valid_samples=0
-    min_power=999999
+    total_power_sum=0
+    avg_power=0
     max_power=0
     actual_power_start_time=""
     actual_power_end_time=""
@@ -233,10 +234,8 @@ calculate_system_efficiency() {
                     actual_power_end_time=$timestamp
                 fi
                 
-                # 更新最小功率
-                if numeric_compare "$total_power_w" "$min_power" "<"; then
-                    min_power=$total_power_w
-                fi
+                # 累加功率值用于计算平均值
+                total_power_sum=$((total_power_sum + total_power_w))
                 
                 # 更新最大功率（使用最大值作为计算功率）
                 if numeric_compare "$total_power_w" "$max_power" ">"; then
@@ -249,13 +248,20 @@ calculate_system_efficiency() {
     done < "$power_log_file"
     
     if ((valid_samples > 0)); then
+        # 计算平均功率
+        if numeric_compare "$total_power_sum" "0" ">"; then
+            avg_power=$(awk "BEGIN {printf \"%.2f\", $total_power_sum / $valid_samples}")
+        else
+            avg_power=0
+        fi
+        
         # 使用最大功率值计算能效比（而不是平均值）
         if numeric_compare "$max_power" "0" ">"; then
             efficiency=$(awk "BEGIN {printf \"%.3f\", $total_performance / $max_power}")
             # 返回格式化的结果字符串，包含实际的功率数据时间戳范围
-            echo "$total_time|$sampling_interval|$valid_samples|$min_power|$max_power|$max_power|$total_performance|$performance_unit|$efficiency|$efficiency_unit|$actual_power_start_time|$actual_power_end_time"
+            echo "$total_time|$sampling_interval|$valid_samples|$avg_power|$max_power|$max_power|$total_performance|$performance_unit|$efficiency|$efficiency_unit|$actual_power_start_time|$actual_power_end_time"
         else
-            echo "$total_time|$sampling_interval|$valid_samples|$min_power|$max_power|$max_power|$total_performance|$performance_unit|N/A|N/A|$actual_power_start_time|$actual_power_end_time"
+            echo "$total_time|$sampling_interval|$valid_samples|$avg_power|$max_power|$max_power|$total_performance|$performance_unit|N/A|N/A|$actual_power_start_time|$actual_power_end_time"
         fi
     else
         echo "$total_time|$sampling_interval|0|N/A|N/A|N/A|$total_performance|$performance_unit|N/A|N/A|N/A|N/A"
@@ -307,7 +313,7 @@ print_system_results_table() {
     total_time="${data[0]}"
     sampling_interval="${data[1]}"
     valid_samples="${data[2]}"
-    min_power="${data[3]}"
+    avg_power="${data[3]}"
     max_power="${data[4]}"
     calc_power="${data[5]}"  # 现在这是计算功率（最大值）
     total_performance="${data[6]}"
@@ -325,11 +331,11 @@ print_system_results_table() {
     
     echo "整机测试结果:"
     echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
-    echo "|计算耗时(ms)| 采样点数 | 最小功率(W) | 最大功率(W) | 计算功率(W) |$spaces计算性能($performance_unit)|$spaces能效比($efficiency_unit)|"
+    echo "|计算耗时(ms)| 采样点数 | 平均功率(W) | 最大功率(W) | 计算功率(W) |$spaces计算性能($performance_unit)|$spaces能效比($efficiency_unit)|"
     echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
     
     # 安全的数值格式化
-    min_power_formatted=$(safe_format_number "$min_power" "%13.2f")
+    avg_power_formatted=$(safe_format_number "$avg_power" "%13.2f")
     max_power_formatted=$(safe_format_number "$max_power" "%13.2f")
     calc_power_formatted=$(safe_format_number "$calc_power" "%13.2f")
     performance_formatted=$(safe_format_number "$total_performance" "%16.2f")
@@ -341,7 +347,7 @@ print_system_results_table() {
     
     printf "|%12s|%10s|%13s|%13s|%13s|%15s|%15s|\n" \
         "$total_time_centered" "$valid_samples_centered" \
-        "$min_power_formatted" "$max_power_formatted" "$calc_power_formatted" \
+        "$avg_power_formatted" "$max_power_formatted" "$calc_power_formatted" \
         "$performance_formatted" "$efficiency_formatted"
     
     echo "+------------+----------+-------------+-------------+-------------+----------------+----------------+"
